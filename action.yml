@@ -203,7 +203,7 @@ runs:
         INPUT_PATH: ${{ inputs.path }}
         INPUT_USE_FORK_POINT: ${{ inputs.use_fork_point }}
     - name: Glob match
-      uses: auto1-oss/glob@v2022.08.19.1
+      uses: auto1-oss/glob@2022.08.19.1
       id: glob
       with:
         files: ${{ inputs.files }}
