@@ -57,29 +57,38 @@ else
 fi
 
 if [[ -z $GITHUB_BASE_REF ]]; then
-  TARGET_BRANCH=${GITHUB_REF/refs\/heads\//}
-  CURRENT_BRANCH=$TARGET_BRANCH
-
-  echo "::debug::GITHUB_BASE_REF unset using $TARGET_BRANCH..."
+  echo "Running on a push event..."
+  TARGET_BRANCH=${GITHUB_REF/refs\/heads\//} && exit_status=$? || exit_status=$?
+  CURRENT_BRANCH=$TARGET_BRANCH && exit_status=$? || exit_status=$?
 
   if [[ -z $INPUT_BASE_SHA ]]; then
     git fetch --no-tags -u --progress origin --depth=2 "${TARGET_BRANCH}":"${TARGET_BRANCH}" && exit_status=$? || exit_status=$?
+    PREVIOUS_SHA=""
 
-    if [[ $(git rev-list --count "HEAD") -gt 1 ]]; then
-      PREVIOUS_SHA=$(git rev-parse "@~1" 2>&1) && exit_status=$? || exit_status=$?
-      echo "::debug::Previous SHA: $PREVIOUS_SHA"
-    else
-      PREVIOUS_SHA=$CURRENT_SHA; exit_status=$?
-      INITIAL_COMMIT="true"
-      echo "::debug::Initial commit detected"
-      echo "::debug::Previous SHA: $PREVIOUS_SHA"
+    if [[ "$GITHUB_EVENT_FORCED" == "false" ]]; then
+      PREVIOUS_SHA=$GITHUB_EVENT_BEFORE
+    fi
+
+    if [[ -z "$PREVIOUS_SHA" || "$PREVIOUS_SHA" == "0000000000000000000000000000000000000000" ]]; then
+      PREVIOUS_SHA=$(git rev-parse "$(git branch -r --sort=-committerdate | head -1 | xargs)")
+    fi
+
+    if [[ "$PREVIOUS_SHA" == "$CURRENT_SHA" ]]; then
+      PREVIOUS_SHA=$(git rev-parse "$CURRENT_SHA^1")
+
+      if [[ "$PREVIOUS_SHA" == "$CURRENT_SHA" ]]; then
+        INITIAL_COMMIT="true"
+        echo "::debug::Initial commit detected"
+      fi
     fi
   else
-    PREVIOUS_SHA=$INPUT_BASE_SHA; exit_status=$?
+    PREVIOUS_SHA=$INPUT_BASE_SHA
     TARGET_BRANCH=$(git name-rev --name-only "$PREVIOUS_SHA" 2>&1) && exit_status=$? || exit_status=$?
-    echo "::debug::Previous SHA: $PREVIOUS_SHA"
-    echo "::debug::Target branch: $TARGET_BRANCH"
+    CURRENT_BRANCH=$TARGET_BRANCH
   fi
+
+  echo "::debug::Target branch $TARGET_BRANCH..."
+  echo "::debug::Current branch $CURRENT_BRANCH..."
 
   echo "::debug::Verifying the previous commit SHA: $PREVIOUS_SHA"
   git rev-parse --quiet --verify "$PREVIOUS_SHA^{commit}" 1>/dev/null 2>&1 && exit_status=$? || exit_status=$?
@@ -90,22 +99,16 @@ if [[ -z $GITHUB_BASE_REF ]]; then
     exit 1
   fi
 else
+  echo "Running on a pull request event..."
   TARGET_BRANCH=$GITHUB_BASE_REF
   CURRENT_BRANCH=$GITHUB_HEAD_REF
 
   echo "::debug::GITHUB_BASE_REF: $TARGET_BRANCH..."
 
   if [[ -z $INPUT_BASE_SHA ]]; then
-    if [[ "$INPUT_USE_FORK_POINT" == "true" ]]; then
-      echo "::debug::Getting fork point..."
-      git fetch --no-tags -u --progress origin "${TARGET_BRANCH}":"${TARGET_BRANCH}" && exit_status=$? || exit_status=$?
-      PREVIOUS_SHA=$(git merge-base --fork-point "${TARGET_BRANCH}" "$(git name-rev --name-only "$CURRENT_SHA")") && exit_status=$? || exit_status=$?
-      echo "::debug::Previous SHA: $PREVIOUS_SHA"
-    else
-      git fetch --no-tags -u --progress origin --depth=1 "${TARGET_BRANCH}":"${TARGET_BRANCH}" && exit_status=$? || exit_status=$?
-      PREVIOUS_SHA=$(git rev-list -n 1 "${TARGET_BRANCH}" 2>&1) && exit_status=$? || exit_status=$?
-      echo "::debug::Previous SHA: $PREVIOUS_SHA"
-    fi
+    git fetch --no-tags -u --progress origin --depth=1 "${TARGET_BRANCH}":"${TARGET_BRANCH}" && exit_status=$? || exit_status=$?
+    PREVIOUS_SHA=$GITHUB_PULL_REQUEST_BASE_SHA && exit_status=$? || exit_status=$?
+    echo "::debug::Previous SHA: $PREVIOUS_SHA"
   else
     git fetch --no-tags -u --progress origin --depth=1 "$(git rev-parse --verify "$INPUT_BASE_SHA")" && exit_status=$? || exit_status=$?
     PREVIOUS_SHA=$INPUT_BASE_SHA

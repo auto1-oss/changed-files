@@ -19,7 +19,6 @@ Retrieve all changed files and directories relative to the target branch (`pull_
 
 *   Fast execution (0-2 seconds on average).
 *   Easy to debug.
-*   Boolean output indicating that certain files have been changed.
 *   Scales to large repositories.
 *   Git submodules support.
 *   No extra API calls.
@@ -32,11 +31,10 @@ Retrieve all changed files and directories relative to the target branch (`pull_
 *   [self-hosted runners](https://docs.github.com/en/actions/hosting-your-own-runners/about-self-hosted-runners) support.
 *   List all files and directories that have changed:
     *   Between the current pull request branch and the last commit on the target branch.
-    *   Between the current pull request branch and the fork point on the target branch.
     *   Between the last commit and the current pushed change.
     *   Between the last remote branch commit and the current HEAD.
 *   Restrict change detection to a subset of files and directories:
-    *   Report on files that have at least one change.
+    *   Boolean output indicating that certain files have been changed.
     *   Using [Glob pattern](https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet) matching.
 
 ## Usage
@@ -46,6 +44,7 @@ Retrieve all changed files and directories relative to the target branch (`pull_
 > *   **IMPORTANT:** For `push` events you need to include `fetch-depth: 0` **OR** `fetch-depth: 2` depending on your use case.
 > *   For monorepos where pulling all the branch history might not be desired, you can omit `fetch-depth` for `pull_request` events.
 > *   For files located in a sub-directory ensure that the pattern specified contains `**/` (globstar) to match any preceding directories or explicitly pass the full path relative to the project root. See: [#314](https://github.com/tj-actions/changed-files/issues/314).
+> *   All multiline inputs should not use double or single qoutes since the value is already a string seperated by a newline character. See [Examples](#examples) for more information.
 
 ```yaml
 name: CI
@@ -66,16 +65,31 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0  # OR "2" -> To retrieve the preceding commit.
-
+      
+      # Example 1
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
 
       - name: List all changed files
         run: |
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "$file was changed"
           done
+      
+      # Example 2
+      - name: Get changed files in the docs folder
+        id: changed-files-specific
+        uses: tj-actions/changed-files@v31
+        with:
+          files: |
+            docs/**
+
+      - name: Run step if any file(s) in the docs folder change
+        if: steps.changed-files-specific.outputs.any_changed == 'true'
+        run: |
+          echo "One or more files in the docs folder has changed."
+          echo "List all the files that have changed: ${{ steps.changed-files-specific.outputs.all_changed_files }}"
 ```
 
 If you feel generous and want to show some extra appreciation:
@@ -104,26 +118,26 @@ Support this project with a :star:
 |               Output               |   type   |                            example                             |                                                                                                      description                                                                                                      |
 |:----------------------------------:|:--------:|:--------------------------------------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
 |            any\_changed            | `string` |                       `true` OR `false`                        |         Returns `true` when any <br /> of the filenames provided using <br /> the `files` input has changed. If no `files` have been specified,<br> an empty string `''` is returned. <br /> i.e. *using a combination of all added, <br />copied, modified and renamed files (ACMR)*          |
-|           only\_changed            | `string` |                       `true` OR `false`                        |                                                           Returns `true` when only <br /> files provided using <br /> the `files` input has changed. If no `files` have been specified,<br> an empty string `''` is returned. (ACMR)                                                           |
-|       other\_changed\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                 Select all other changed files <br/> not listed in the files input <br /> i.e. *a  combination of all added, <br /> copied and modified files (ACMR)*                                 |
+|           only\_changed            | `string` |                       `true` OR `false`                        |                                                           Returns `true` when only <br /> files provided using <br /> the `files` input has changed. If no `files` have been specified,<br> an empty string `''` is returned. <br /> i.e. *using a combination of all added, <br />copied, modified and renamed files (ACMR)*    |
+|       other\_changed\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                 Returns all other changed files <br/> not listed in the files input <br /> i.e. *using a combination of all added, <br />copied, modified and renamed files (ACMR)*                                 |
 |           any\_modified            | `string` |                       `true` OR `false`                        | Returns `true` when any <br /> of the filenames provided using <br /> the `files` input has been modified. If no `files` have been specified,<br> an empty string `''` is returned. <br /> i.e. *using a combination of all added, <br />copied, modified, renamed, and deleted files (ACMRD)* |
 |           only\_modified           | `string` |                       `true` OR `false`                        |                                                       Returns `true` when only <br /> files provided using <br /> the `files` input has been modified. If no `files` have been specified,<br> an empty string `''` is returned.(ACMRD)                                                        |
-|       other\_modified\_files       | `string` |                `'new.txt path/to/file.png ...'`                |                           Select all other modified files <br/> not listed in the files input <br /> i.e. *a  combination of all added, <br /> copied, modified, and deleted files (ACMRD)*                           |
+|       other\_modified\_files       | `string` |                `'new.txt path/to/file.png ...'`                |                           Returns all other modified files <br/> not listed in the files input <br /> i.e. *a  combination of all added, <br /> copied, modified, and deleted files (ACMRD)*                           |
 |            any\_deleted            | `string` |                       `true` OR `false`                        |                                                     Returns `true` when any <br /> of the filenames provided using <br /> the `files` input has been deleted. If no `files` have been specified,<br> an empty string `''` is returned. (D)                                                     |
 |           only\_deleted            | `string` |                       `true` OR `false`                        |                                                          Returns `true` when only <br /> files provided using <br /> the `files` input has been deleted. If no `files` have been specified,<br> an empty string `''` is returned. (D)                                                          |
-|       other\_deleted\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                               Select all other deleted files <br/> not listed in the files input <br /> i.e. *a  combination of all deleted files (D)*                                                |
-|        all\_changed\_files         | `string` |                `'new.txt path/to/file.png ...'`                |                                                  Select all changed files <br /> i.e. *a combination of all added, <br />copied, modified and renamed files (ACMR)*                                                   |
-|        all\_modified\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                             Select all changed files <br /> i.e. *a combination of all added, <br />copied, modified, renamed and deleted files (ACMRD)*                                              |
-| all\_changed\_and\_modified\_files | `string` |                `'new.txt path/to/file.png ...'`                |                                                                Select all changed <br /> and modified files <br /> i.e. *a combination of (ACMRDTUX)*                                                                 |
-|   all\_old\_new\_renamed\_files    | `string` | `'old name.txt,new name.txt old name 2.txt,new name 2.txt...'` |                                                                        Select only files that are Renamed and list their old and new names. <br> NOTE: This requires setting `include_all_old_new_renamed_files` to `true` (R)                                                                        |
-|            added\_files            | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                         Select only files that are Added (A)                                                                                          |
-|           copied\_files            | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                         Select only files that are Copied (C)                                                                                         |
-|           deleted\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Select only files that are Deleted (D)                                                                                         |
-|          modified\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Select only files that are Modified (M)                                                                                        |
-|           renamed\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Select only files that are Renamed (R)                                                                                         |
-|        type\_changed\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                Select only files that have their file type changed (T)                                                                                |
-|          unmerged\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Select only files that are Unmerged (U)                                                                                        |
-|           unknown\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Select only files that are Unknown (X)                                                                                         |
+|       other\_deleted\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                               Returns all other deleted files <br/> not listed in the files input <br /> i.e. *a  combination of all deleted files (D)*                                                |
+|        all\_changed\_files         | `string` |                `'new.txt path/to/file.png ...'`                |                                                  Returns all changed files <br /> i.e. *a combination of all added, <br />copied, modified and renamed files (ACMR)*                                                   |
+|        all\_modified\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                             Returns all changed files <br /> i.e. *a combination of all added, <br />copied, modified, renamed and deleted files (ACMRD)*                                              |
+| all\_changed\_and\_modified\_files | `string` |                `'new.txt path/to/file.png ...'`                |                                                                Returns all changed <br /> and modified files <br /> i.e. *a combination of (ACMRDTUX)*                                                                 |
+|   all\_old\_new\_renamed\_files    | `string` | `'old name.txt,new name.txt old name 2.txt,new name 2.txt...'` |                                                                        Returns only files that are Renamed and list their old and new names. <br> NOTE: This requires setting `include_all_old_new_renamed_files` to `true` (R)                                                                        |
+|            added\_files            | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                         Returns only files that are Added (A)                                                                                          |
+|           copied\_files            | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                         Returns only files that are Copied (C)                                                                                         |
+|           deleted\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Returns only files that are Deleted (D)                                                                                         |
+|          modified\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Returns only files that are Modified (M)                                                                                        |
+|           renamed\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Returns only files that are Renamed (R)                                                                                         |
+|        type\_changed\_files        | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                Returns only files that have their file type changed (T)                                                                                |
+|          unmerged\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Returns only files that are Unmerged (U)                                                                                        |
+|           unknown\_files           | `string` |                `'new.txt path/to/file.png ...'`                |                                                                                        Returns only files that are Unknown (X)                                                                                         |
 
 ## Inputs
 
@@ -133,21 +147,19 @@ Support this project with a :star:
 | include\_all\_old\_new\_renamed\_files |       `boolean`        | `false`  |        `false`        |                                                                                    Include `all_old_new_renamed_files` output. Note this can generate a large output See: [#501](https://github.com/tj-actions/changed-files/issues/501).                                                                                     |
 |          old\_new\_separator           |        `string`        | `false`  |         `','`         |                                                                                                                                        Split character for old and new filename pairs                                                                                                                                         |
 |       old\_new\_files\_separator       |        `string`        | `false`  |         `' '`         |                                                                                                                                    Split character for multiple old and new filename pairs                                                                                                                                    |
-|                 files                  | `string` OR `string[]` | `false`  |                       |                                                                                                             Check for changes  <br> using only these <br> list of file(s) <br> (Defaults to the <br> entire repo)                                                                                                             |
+|                 files                  | `string` OR `string[]` | `false`  |                       |                                                                                                             Check for changes  <br> using only these <br> list of file(s) <br> (Defaults to the <br> entire repo) <br /> **NOTE:** Multiline file/directory patterns <br /> should not include qoutes. <br />                                                                                                            |
 |            files\_separator            |        `string`        | `false`  |        `'\n'`         |                                                                                                                                         Separator used to split the<br>`files` input                                                                                                                                          |
 |       files\_from\_source\_file        |        `string`        | `false`  |                       |                                                                                                                                  Source file(s) <br> used to populate <br> the `files` input                                                                                                                                  |
-|             files\_ignore              |        `string`        | `false`  |                       |                                                                                                                                                Ignore changes to these file(s)                                                                                                                                                |
+|             files\_ignore              |        `string`        | `false`  |                       |                                                                                                                                                Ignore changes to these file(s) <br /> **NOTE:** Multiline file/directory patterns <br /> should not include qoutes. <br />                                                                                                                                                |
 |        files\_ignore\_separator        |        `string`        | `false`  |        `'\n'`         |                                                                                                                                     Separator used to split the <br>`files-ignore` input                                                                                                                                      |
 |   files\_ignore\_from\_source\_file    |        `string`        | `false`  |                       |                                                                                                                              Source file(s) <br> used to populate <br> the `files_ignore` input                                                                                                                               |
 |                  sha                   |        `string`        |  `true`  |  `${{ github.sha }}`  |                                                                                                                           Specify a different <br> commit SHA <br> used for <br> comparing changes                                                                                                                            |
 |               base\_sha                |        `string`        | `false`  |                       |                                                                                                                         Specify a different <br> base commit SHA <br> used for <br> comparing changes                                                                                                                         |
 |                  path                  |        `string`        | `false`  |         `'.'`         |                                                                                                                              Relative path under <br> `GITHUB_WORKSPACE` <br> to the repository                                                                                                                               |
-|      since\_last\_remote\_commit       |       `boolean`        | `false`  |        `false`        |       Use the last commit on the remote <br> branch as the `base_sha` <br> (Defaults to the last commit <br> on the target branch for Pull requests <br> or the previous commit <br> on the current branch <br> for push events). <br /> NOTE: This requires <br /> `fetch-depth: 0` <br /> with `actions/checkout@v3`        |
-|            use\_fork\_point            |       `boolean`        | `false`  |        `false`        |           Finds best common ancestor <br /> between two commits <br /> to use in a three-way merge <br /> as the `base_sha` <br /> See: [git merge-base](https://git-scm.com/docs/git-merge-base#Documentation/git-merge-base.txt---fork-point). <br> NOTE: This pulls the entire commit history of the base branch           |
 |               quotepath                |       `boolean`        | `false`  |        `true`         |                                                                                                                                Output filenames completely verbatim by setting this to `false`                                                                                                                                |
-|             diff\_relative             |       `boolean`        | `false`  |                       |                                                                                                                       Exclude changes outside the current directory and show pathnames relative to it.                                                                                                                        |
-|               dir\_names               |       `boolean`        | `false`  |        `false`        |                                                                                        Output unique changed directories instead of filenames. <br> NOTE: This returns `.` for <br> changed files located in the root of the project.                                                                                         |
-|                  json                  |       `boolean`        | `false`  |        `false`        |                                                                                                                            Output changed files in JSON format which can be used for matrix jobs.                                                                                                                             |
+|             diff\_relative             |       `boolean`        | `false`  |                       |                                                                                                                       Exclude changes outside the current directory and show pathnames relative to it. **NOTE:** This requires you to specify the top level directory via the `path` input.                                                                                                                     |
+|               dir\_names               |       `boolean`        | `false`  |        `false`        |                                                                                        Output unique changed directories instead of filenames. <br> **NOTE:** This returns `.` for <br> changed files located in the root of the project.                                                                                         |
+|                  json                  |       `boolean`        | `false`  |        `false`        |                                                                                                                            Output changed files in JSON format which can be used for [matrix jobs](https://github.com/tj-actions/changed-files/blob/main/.github/workflows/manual-matrix-test.yml).                                                                                                                             |
 |                  since                  |       `string`        | `false`  |                |                                                                                                                            Get changed files for commits whose timestamp is older than the given time.                                                                                                                             |
 |                  until                  |       `string`        | `false`  |                |                                                                                                                            Get changed files for commits whose timestamp is earlier than the given time.                                                                                                                             |
 
@@ -163,11 +175,11 @@ Support this project with a :star:
 
       - name: Get changed files using defaults
         id: changed-files
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
 
       - name: Get changed files using a comma separator
         id: changed-files-comma
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           separator: ","
 
@@ -189,7 +201,7 @@ Support this project with a :star:
 
       - name: Get specific changed files
         id: changed-files-specific
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           files: |
             my-file.txt
@@ -230,14 +242,14 @@ Support this project with a :star:
 
       - name: Use a source file or list of file(s) to populate to files input.
         id: changed-files-specific-source-file
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           files_from_source_file: |
             test/changed-files-list.txt
 
       - name: Use a source file or list of file(s) to populate to files input and optionally specify more files.
         id: changed-files-specific-source-file-and-specify-files
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           files_from_source_file: |
             test/changed-files-list.txt
@@ -246,13 +258,13 @@ Support this project with a :star:
 
       - name: Use a different commit SHA
         id: changed-files-custom-sha
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Use a different base SHA
         id: changed-files-custom-base-sha
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           base_sha: ${{ github.event.pull_request.base.sha }}
           
@@ -264,7 +276,7 @@ Support this project with a :star:
 
       - name: Run changed-files with defaults on the dir1
         id: changed-files-for-dir1
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           path: dir1
 
@@ -274,21 +286,9 @@ Support this project with a :star:
             echo "$file was added"
           done
 
-      - name: Run changed-files using the last commit on the remote branch
-        id: changed-files-since-last-remote-commit
-        uses: tj-actions/changed-files@v29.0.3
-        with:
-          since_last_remote_commit: "true"
-      
-      - name: Run changed-files using the fork point of a pull request
-        id: changed-files-fork-point
-        uses: tj-actions/changed-files@v29.0.3
-        with:
-          use_fork_point: "true"
-          
       - name: Run changed-files with quotepath disabled
         id: changed-files-quotepath
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           quotepath: "false"
       
@@ -299,7 +299,7 @@ Support this project with a :star:
       # Push event based workflows
       - name: Get branch name
         id: branch-name
-        uses: tj-actions/branch-names@v5
+        uses: tj-actions/branch-names@v6
 
       - uses: nrwl/last-successful-commit-action@v1
         id: last_successful_commit_push
@@ -310,7 +310,7 @@ Support this project with a :star:
 
       - name: Run changed-files with the commit of the last successful test workflow run
         id: changed-files-base-sha-push
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           base_sha: ${{ steps.last_successful_commit_push.outputs.commit_hash }}
 
@@ -331,32 +331,32 @@ Support this project with a :star:
       - name: Run changed-files with the commit of the last successful test workflow run on main
         if: github.event_name == 'pull_request'
         id: changed-files-base-sha-pull-request
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           base_sha: ${{ steps.last_successful_commit_pull_request.outputs.commit_hash }}
 
       - name: Run changed-files with dir_names
         id: changed-files-dir-names
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           dir_names: "true"
       
       # All outputs are JSON formatted arrays and can be used in other actions and matrix compatible jobs.
       - name: Run changed-files with json output
         id: changed-files-json
-        uses: tj-actions/changed-files@v29.0.3
-        with:
+        uses: tj-actions/changed-files@v31
+        wi
           json: "true"
 
       - name: Run changed-files since 2022-08-19
         id: changed-files-since
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           since: "2022-08-19"
 
       - name: Run changed-files until 2022-08-20
         id: changed-files-until
-        uses: tj-actions/changed-files@v29.0.3
+        uses: tj-actions/changed-files@v31
         with:
           until: "2022-08-20"
 ```
@@ -380,6 +380,7 @@ This package was created with [Cookiecutter](https://github.com/cookiecutter/coo
 
 *   [tj-actions/glob](https://github.com/tj-actions/glob)
 *   [tj-actions/demo](https://github.com/tj-actions/demo)
+*   [tj-actions/release-tagger](https://github.com/tj-actions/release-tagger)
 
 ## Report Bugs
 

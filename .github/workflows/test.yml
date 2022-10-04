@@ -6,6 +6,11 @@ on:
       - main
       - "**"
   pull_request:
+    types:
+      - closed
+      - opened
+      - synchronize
+      - reopened
     branches:
       - main
   pull_request_review:
@@ -22,46 +27,6 @@ jobs:
         uses: actions/checkout@v3
       - name: shellcheck
         uses: reviewdog/action-shellcheck@v1.15
-
-  test-pull-requests-from-forks:
-    name: Test changed-files diff on pull_requests from forks
-    runs-on: ${{ matrix.platform }}
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        platform: [ubuntu-latest, ubuntu-22.04, windows-latest, macos-latest, macos-11, ubuntu-18.04, windows-2022]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: true
-          fetch-depth: 0
-
-      - name: Get changed files use_fork_point
-        id: changed-files-fork-point
-        uses: ./
-        with:
-          use_fork_point: "true"
-
-      - name: Show output
-        run: |
-          echo '${{ toJSON(steps.changed-files-fork-point.outputs) }}'
-        shell:
-          bash
-
-      - name: Get changed files
-        id: changed-files
-        uses: ./
-        with:
-           base_sha: ${{ github.event.pull_request.base.sha }}
-
-      - name: Show output
-        run: |
-          echo '${{ toJSON(steps.changed-files.outputs) }}'
-        shell:
-          bash
 
   test-multiple-repositories:
     name: Test with multiple repositories
@@ -171,7 +136,14 @@ jobs:
 
       - name: Run changed-files with a single commit history
         id: changed-files
+        continue-on-error: true
         uses: ./
+      
+      - name: Exit with 1 if no error is raised
+        if: steps.changed-files.outcome != 'failure' && github.event.action == 'closed'
+        run: |
+          echo "Expected: (failure) got ${{ steps.changed-files.outcome }}"
+          exit 1
 
       - name: Show output
         run: |
@@ -298,6 +270,10 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
       - name: Run changed-files with defaults
         id: changed-files
         uses: ./
@@ -317,6 +293,17 @@ jobs:
         if: contains(steps.changed-files.outputs.modified_files, 'README.md')
         run: |
           echo "Your README.md has been modified ${{ steps.changed-files.outputs.modified_files }}."
+        shell:
+          bash
+      - name: Run changed-files with quotepath disabled for single path
+        id: changed-files-quotepath-specific
+        uses: ./
+        with:
+          files: test/test-è.txt
+          quotepath: "false"
+      - name: Show output
+        run: |
+          echo '${{ toJSON(steps.changed-files-quotepath-specific.outputs) }}'
         shell:
           bash
       - name: Run changed-files with quotepath disabled
@@ -548,10 +535,10 @@ jobs:
         uses: ./
         with:
           files: |
-            entrypoint.sh
+            get-changed-paths.sh
             *.sh
       - name: Verify all_changed_files files has no duplicates
-        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_changed_files, 'entrypoint.sh')
+        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_changed_files, 'get-changed-paths.sh')
         run: |
           ALL_CHANGED_FILES=(${{ steps.changed-files-specific-duplicate-output.outputs.all_changed_files }})
           UNIQUE_ALL_CHANGED_FILES=$(echo "$ALL_CHANGED_FILES" | tr ' ' '\n' | sort -u | xargs)
@@ -563,7 +550,7 @@ jobs:
         shell:
           bash
       - name: Verify all_changed_and_modified_files files has no duplicates
-        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_changed_and_modified_files, 'entrypoint.sh')
+        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_changed_and_modified_files, 'get-changed-paths.sh')
         run: |
           ALL_CHANGED_AND_MODIFIED_FILES=(${{ steps.changed-files-specific-duplicate-output.outputs.all_changed_and_modified_files }})
           UNIQUE_ALL_CHANGED_AND_MODIFIED_FILES=$(echo "$ALL_CHANGED_AND_MODIFIED_FILES" | tr ' ' '\n' | sort -u | xargs)
@@ -575,7 +562,7 @@ jobs:
         shell:
           bash
       - name: Verify all_modified_files files has no duplicates
-        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_modified_files, 'entrypoint.sh')
+        if: contains(steps.changed-files-specific-duplicate-output.outputs.all_modified_files, 'get-changed-paths.sh')
         run: |
           ALL_MODIFIED_FILES=(${{ steps.changed-files-specific-duplicate-output.outputs.all_modified_files }})
           UNIQUE_ALL_MODIFIED_FILES=$(echo "$ALL_MODIFIED_FILES" | tr ' ' '\n' | sort -u | xargs)
@@ -829,11 +816,6 @@ jobs:
           echo '${{ toJSON(steps.changed-files-custom-sha.outputs) }}'
         shell:
           bash
-      - name: Run changed-files with since_last_remote_commit set to true
-        id: changed-files-since-last-remote-commit
-        uses: ./
-        with:
-          since_last_remote_commit: 'true'
       - name: Show output
         run: |
           echo '${{ toJSON(steps.changed-files-since-last-remote-commit.outputs) }}'
@@ -845,19 +827,19 @@ jobs:
         if: github.event_name == 'pull_request'
       - uses: nrwl/last-successful-commit-action@v1
         id: last_successful_commit
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
         with:
           branch: ${{ steps.branch-name.outputs.base_ref_branch }}
           workflow_id: 'test.yml'
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run changed-files with a custom base sha
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
         id: changed-files-custom-base-sha
         uses: ./
         with:
           base_sha: ${{ steps.last_successful_commit.outputs.commit_hash }}
       - name: Show output
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.action != 'closed'
         run: |
           echo '${{ toJSON(steps.changed-files-custom-base-sha.outputs) }}'
         shell:
