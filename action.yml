@@ -184,7 +184,7 @@ runs:
         INPUT_MAX_FETCH_DEPTH: ${{ inputs.max_fetch_depth }}
         INPUT_SINCE_LAST_REMOTE_COMMIT: ${{ inputs.since_last_remote_commit }}
     - name: Glob match
-      uses: tj-actions/glob@v16
+      uses: tj-actions/glob@2022.10.18.1
       id: glob
       with:
         files: ${{ inputs.files }}
